@@ -1,0 +1,10 @@
+[project]
+name = "golden-keyboard-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=6.1.1",
+    "django-rest-framework>=0.1.0",
+]
