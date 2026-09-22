@@ -1,9 +1,12 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.viewsets import ModelViewSet
 
+from .filters import MissionFilter
 from .models import Mission
 from .permissions import IsParticipant, IsReadOnly, IsStaff
 from .serializers import MissionSerializer
@@ -17,6 +20,8 @@ class MissionViewSet(ModelViewSet):
     queryset = Mission.objects.select_related("claimed_by__hostel", "completed_by__hostel")
     serializer_class = MissionSerializer
     permission_classes = [IsReadOnly | IsStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = MissionFilter
     search_fields = ["codename", "brief"]
 
     @action(detail=True, methods=["post"], permission_classes=[IsParticipant], throttle_classes=[MissionActionRateThrottle])
