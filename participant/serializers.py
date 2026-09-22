@@ -16,6 +16,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Participant
         fields = "__all__"
+        read_only_fields = ["user"]
 
     @atomic
     def create(self, validated_data):
