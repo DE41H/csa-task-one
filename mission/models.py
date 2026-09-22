@@ -2,6 +2,8 @@ from django.db import models
 from django.db.transaction import atomic
 from django.utils.timezone import now
 
+from participant.models import Participant
+
 # Create your models here.
 
 class Difficulty(models.TextChoices):
@@ -27,6 +29,7 @@ class Mission(models.Model):
     deadline = models.DateTimeField()
     claimed_by = models.OneToOneField("participant.Participant", on_delete=models.SET_NULL, related_name="current_mission", null=True, blank=True)
     completed_by = models.ForeignKey("participant.Participant", on_delete=models.SET_NULL, related_name="completed_missions", null=True, blank=True)
+    completed_hostel = models.ForeignKey("participant.Hostel", on_delete=models.SET_NULL, related_name="cracked_missions", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -52,7 +55,9 @@ class Mission(models.Model):
         return self.__class__.objects.filter(pk=self.pk, claimed_by_id=user_id, completed_by__isnull=True).update(claimed_by=None)
 
     def complete(self, user_id):
-        return self.__class__.objects.filter(pk=self.pk, claimed_by_id=user_id, completed_by__isnull=True, deadline__gt=now()).update(completed_by_id=user_id, claimed_by=None)
+        qs = self.__class__.objects.filter(pk=self.pk, claimed_by_id=user_id, completed_by__isnull=True, deadline__gt=now())
+        hostel_id = Participant.objects.only("hostel_id").get(id=user_id).hostel_id
+        return qs.update(completed_by_id=user_id, claimed_by=None, completed_hostel_id=hostel_id)
 
     def __str__(self):
         return str(self.codename)
