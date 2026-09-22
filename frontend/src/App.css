@@ -1,0 +1,213 @@
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #273449;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.brand {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-links a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-links a:hover {
+  color: var(--accent);
+}
+
+.username {
+  color: var(--muted);
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+  color: #0f172a;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input,
+select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.auth-card {
+  max-width: 360px;
+  margin: 40px auto;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.error.small {
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.mission-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mission-card {
+  background: var(--surface);
+  border-left: 4px solid var(--muted);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.mission-card.status-unclaimed {
+  border-left-color: var(--accent);
+}
+
+.mission-card.status-in_progress {
+  border-left-color: var(--warning);
+}
+
+.mission-card.status-cracked {
+  border-left-color: var(--success);
+}
+
+.mission-card.status-expired {
+  border-left-color: var(--danger);
+}
+
+.mission-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mission-header h3 {
+  margin: 0;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.mission-brief {
+  color: var(--muted);
+  margin: 8px 0;
+}
+
+.mission-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.mission-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.leaderboard {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboard th,
+.leaderboard td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--surface-2);
+}
