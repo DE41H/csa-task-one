@@ -45,7 +45,7 @@ class HostelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hostel
         fields = ["id", "name", "score", "cracked_missions", "created_at", "updated_at"]
-        read_only_fields = fields
+        read_only_fields = ["score", "cracked_missions", "created_at", "updated_at"]
 
     def get_cracked_missions(self, obj):
         return obj.cracked_missions.order_by("-points").values("codename", "points", "difficulty", "deadline")
