@@ -7,18 +7,18 @@ from participant.models import Participant
 # Create your models here.
 
 class Difficulty(models.TextChoices):
-    EASY = "Easy"
-    MEDIUM = "Medium"
-    HARD = "Hard"
-    EXTREME = "Extreme"
-    BRUTAL = "Brutal"
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
+    EXTREME = "extreme"
+    BRUTAL = "brutal"
 
 
 class Status():
-    UNCLAIMED = "Unclaimed"
-    IN_PROGRESS = "In Progress"
-    CRACKED = "Cracked"
-    EXPIRED = "Expired"
+    UNCLAIMED = "unclaimed"
+    IN_PROGRESS = "in_progress"
+    CRACKED = "cracked"
+    EXPIRED = "expired"
 
 
 class Mission(models.Model):
