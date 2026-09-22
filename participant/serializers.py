@@ -10,7 +10,7 @@ User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(max_length=150, validators=[UniqueValidator(queryset=User.objects.all())])
+    username = serializers.CharField(max_length=150, write_only=True, validators=[UniqueValidator(queryset=User.objects.all())])
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:
@@ -22,6 +22,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = User.objects.create_user(username=validated_data.pop("username"), password=validated_data.pop("password"))
         return Participant.objects.create(user=user, **validated_data)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["username"] = instance.user.username
+        return data
 
 
 class ParticipantSerializer(serializers.ModelSerializer):
