@@ -1,0 +1,2740 @@
+{
+  "info": {
+    "_postman_id": "2825e470-fed1-491c-afae-0ba27c16c4a8",
+    "name": "Operation Golden Keyboard API",
+    "description": "Hostel-vs-hostel mission competition backend (Django REST Framework).\n\n## Before running\n1. Start the backend: `uv run python manage.py runserver`.\n2. Create a staff (superuser) account for the staff-only requests, since the public register endpoint can only create regular participants:\n\n   `uv run python manage.py shell -c \"from django.contrib.auth import get_user_model; get_user_model().objects.create_superuser('staff_demo', password='StaffPass123!')\"`\n\n   (matches the default `staff_username`/`staff_password` environment values -- change both if you use a different account).\n3. Import the paired environment (`Operation Golden Keyboard - Local`) and select it.\n\n## Running\nRun folders top-to-bottom (or the whole collection via Collection Runner) -- later folders depend on IDs and tokens captured by earlier ones (hostel ids, participant ids, tokens, mission ids). Registration uses timestamp-suffixed usernames/handles so the collection is safe to re-run without unique-constraint collisions; the final Cleanup folder removes the missions it created (participants/users have no delete endpoint, so registered demo accounts accumulate across runs -- harmless, just noisy).\n\n## What this demonstrates\nMission CRUD, hostel/participant APIs, the derived leaderboard, filtering/search/pagination, claim/drop/complete, ownership and staff-only permission failures, expired-mission rejection, and the claim throttle (5/min -> 429).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "List Hostels (capture IDs for registration)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('At least two hostels are seeded', function () {",
+                  "        pm.expect(data.results.length).to.be.at.least(2);",
+                  "    });",
+                  "    pm.environment.set('hostel_id_a', data.results[0].id);",
+                  "    pm.environment.set('hostel_id_b', data.results[1].id);",
+                  "    pm.environment.set('hostel_id', data.results[0].id);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                ""
+              ]
+            },
+            "description": "Grabs two real hostel ids from the seeded list so Auth/Register can reference them."
+          },
+          "response": []
+        }
+      ],
+      "description": "Run first. Populates hostel ids used by registration."
+    },
+    {
+      "name": "1. Documentation",
+      "item": [
+        {
+          "name": "Get OpenAPI Schema (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/schema/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schema",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Swagger UI (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/docs/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "docs",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Runs early, before the anonymous-read throttle quota (20/min) gets consumed by later folders."
+    },
+    {
+      "name": "2. Auth",
+      "item": [
+        {
+          "name": "Register Participant A (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    if (!pm.environment.get('participant_a_username')) {",
+                  "        const suffix = Date.now();",
+                  "        pm.environment.set('participant_a_username', 'demo_a_' + suffix);",
+                  "        pm.environment.set('participant_a_handle', 'demo_handle_a_' + suffix);",
+                  "    }",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 201', function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('participant_a_id', data.id);",
+                  "    pm.test('Response echoes the username (not the internal user id)', function () {",
+                  "        pm.expect(data.username).to.eql(pm.environment.get('participant_a_username'));",
+                  "    });",
+                  "    pm.test('Password is never echoed back', function () {",
+                  "        pm.expect(data).to.not.have.property('password');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api/register/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api",
+                "register",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{participant_a_username}}\",\n  \"password\": \"{{participant_a_password}}\",\n  \"handle\": \"{{participant_a_handle}}\",\n  \"hostel\": \"{{hostel_id_a}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Regression coverage for a bug where RegisterSerializer crashed (AttributeError) building this exact response."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Participant B (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    if (!pm.environment.get('participant_b_username')) {",
+                  "        const suffix = Date.now();",
+                  "        pm.environment.set('participant_b_username', 'demo_b_' + suffix);",
+                  "        pm.environment.set('participant_b_handle', 'demo_handle_b_' + suffix);",
+                  "    }",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 201', function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('participant_b_id', data.id);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api/register/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api",
+                "register",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{participant_b_username}}\",\n  \"password\": \"{{participant_b_password}}\",\n  \"handle\": \"{{participant_b_handle}}\",\n  \"hostel\": \"{{hostel_id_b}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register - Duplicate Username (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 400', function () {",
+                  "        pm.response.to.have.status(400);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Error names the username field', function () {",
+                  "        pm.expect(data).to.have.property('username');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api/register/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api",
+                "register",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{participant_a_username}}\",\n  \"password\": \"AnotherPass123!\",\n  \"handle\": \"{{participant_a_handle}}_dup\",\n  \"hostel\": \"{{hostel_id_a}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register - Invalid Hostel (Failure)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.environment.set('_invalid_hostel_username', 'invalid_hostel_' + Date.now());",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 400', function () {",
+                  "        pm.response.to.have.status(400);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Error names the hostel field', function () {",
+                  "        pm.expect(data).to.have.property('hostel');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/api/register/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "api",
+                "register",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{_invalid_hostel_username}}\",\n  \"password\": \"DemoPass123!\",\n  \"handle\": \"{{_invalid_hostel_username}}_handle\",\n  \"hostel\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Participant A (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('access_token_a', data.access);",
+                  "    pm.environment.set('refresh_token_a', data.refresh);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{participant_a_username}}\",\n  \"password\": \"{{participant_a_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Participant B (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('access_token_b', data.access);",
+                  "    pm.environment.set('refresh_token_b', data.refresh);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{participant_b_username}}\",\n  \"password\": \"{{participant_b_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Staff (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200 (see collection description if this fails: a staff user must be pre-created, the register endpoint cannot make one)', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('access_token_staff', data.access);",
+                  "    pm.environment.set('refresh_token_staff', data.refresh);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Invalid Credentials (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 401', function () {",
+                  "        pm.response.to.have.status(401);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"nonexistent_user_xyz\",\n  \"password\": \"WrongPass123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Access Token - Participant A (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('access_token_a', data.access);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/token/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "token",
+                "refresh",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token_a}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Registration, JWT login, refresh, and failure cases."
+    },
+    {
+      "name": "3. Hostels",
+      "item": [
+        {
+          "name": "List Hostels (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve Hostel (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Returned hostel id matches the requested id', function () {",
+                  "        pm.expect(Number(data.id)).to.eql(Number(pm.environment.get('hostel_id_a')));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/{{hostel_id_a}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                "{{hostel_id_a}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Hostel - Unauthenticated (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 401', function () {",
+                  "        pm.response.to.have.status(401);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Should Fail Hostel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Hostel - Participant (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 403', function () {",
+                  "        pm.response.to.have.status(403);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Should Fail Hostel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Hostel - Staff (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.environment.set('hostel_scratch_name', 'Postman Scratch Hostel ' + Date.now());",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 201', function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('hostel_scratch_id', data.id);",
+                  "    pm.test('Name was actually saved (not silently dropped)', function () {",
+                  "        pm.expect(data.name).to.eql(pm.environment.get('hostel_scratch_name'));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{hostel_scratch_name}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Regression coverage for a bug where every HostelSerializer field was read-only, so POST created blank-named hostels."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Hostel - Staff (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Name was actually updated (not silently ignored)', function () {",
+                  "        pm.expect(data.name).to.eql(pm.environment.get('hostel_scratch_name') + ' Renamed');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/{{hostel_scratch_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                "{{hostel_scratch_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{hostel_scratch_name}} Renamed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Regression coverage for the same bug: PATCH used to return 200 without changing anything."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Hostel - Staff (Success, cleanup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 204', function () {",
+                  "        pm.response.to.have.status(204);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hostels/{{hostel_scratch_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "hostels",
+                "{{hostel_scratch_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Read is public; writes are staff-only."
+    },
+    {
+      "name": "4. Participants",
+      "item": [
+        {
+          "name": "List Participants - Unauthenticated (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 401', function () {",
+                  "        pm.response.to.have.status(401);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/participants/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "participants",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Participants - Authenticated (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/participants/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "participants",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve Participant (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Handle matches the registered participant', function () {",
+                  "        pm.expect(data.handle).to.eql(pm.environment.get('participant_a_handle'));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/participants/{{participant_a_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "participants",
+                "{{participant_a_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Read-only; requires a participant or staff account."
+    },
+    {
+      "name": "5. Leaderboard",
+      "item": [
+        {
+          "name": "Get Leaderboard (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Hostels are ordered by score descending', function () {",
+                  "        const scores = data.results.map(h => h.score);",
+                  "        const sorted = [...scores].sort((a, b) => b - a);",
+                  "        pm.expect(scores).to.eql(sorted);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/leaderboard/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "leaderboard",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Score is derived via aggregation, never stored directly."
+    },
+    {
+      "name": "6. Missions - CRUD",
+      "item": [
+        {
+          "name": "Create Mission - Staff (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const suffix = Date.now();",
+                  "    pm.environment.set('mission_codename', 'Postman Binary Mission ' + suffix);",
+                  "    pm.environment.set('mission_brief', 'Find the hidden binary flag before the deadline.');",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 201', function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('mission_id', data.id);",
+                  "    pm.test('New mission starts unclaimed', function () {",
+                  "        pm.expect(data.status).to.eql('unclaimed');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codename\": \"{{mission_codename}}\",\n  \"brief\": \"{{mission_brief}}\",\n  \"points\": 50,\n  \"difficulty\": \"medium\",\n  \"deadline\": \"2099-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Mission - Participant (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 403', function () {",
+                  "        pm.response.to.have.status(403);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codename\": \"Should Fail Mission\",\n  \"brief\": \"x\",\n  \"points\": 10,\n  \"difficulty\": \"easy\",\n  \"deadline\": \"2099-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Mission - Unauthenticated (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 401', function () {",
+                  "        pm.response.to.have.status(401);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codename\": \"Should Fail Mission\",\n  \"brief\": \"x\",\n  \"points\": 10,\n  \"difficulty\": \"easy\",\n  \"deadline\": \"2099-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Scratch Mission for Delete Demo - Staff (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.environment.set('scratch_mission_codename', 'Postman Scratch Mission ' + Date.now());",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 201', function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('scratch_mission_id', data.id);",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codename\": \"{{scratch_mission_codename}}\",\n  \"brief\": \"Disposable mission used only to demo DELETE.\",\n  \"points\": 5,\n  \"difficulty\": \"easy\",\n  \"deadline\": \"2099-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve Mission (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Mission Points - Staff (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Points were updated', function () {",
+                  "        pm.expect(data.points).to.eql(75);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"points\": 75\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Mission Points - Participant (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 403', function () {",
+                  "        pm.response.to.have.status(403);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"points\": 9999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "'Participant tries to edit mission points -> Failure' from the task spec."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Mission - Participant (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 403', function () {",
+                  "        pm.response.to.have.status(403);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{scratch_mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{scratch_mission_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Mission - Staff (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 204', function () {",
+                  "        pm.response.to.have.status(204);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{scratch_mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{scratch_mission_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Full CRUD is staff-only for writes; reads are public."
+    },
+    {
+      "name": "7. Filtering, Search & Pagination",
+      "item": [
+        {
+          "name": "Filter by Status=unclaimed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Every result is unclaimed', function () {",
+                  "        data.results.forEach(m => pm.expect(m.status).to.eql('unclaimed'));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/?status=unclaimed",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "unclaimed"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Difficulty=medium",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Every result has difficulty medium', function () {",
+                  "        data.results.forEach(m => pm.expect(m.difficulty).to.eql('medium'));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/?difficulty=medium",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "difficulty",
+                  "value": "medium"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Filter by Hostel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/?hostel={{hostel_id_a}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "hostel",
+                  "value": "{{hostel_id_a}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search by Keyword",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('The mission created earlier is found by search', function () {",
+                  "        const codename = pm.environment.get('mission_codename');",
+                  "        pm.expect(data.results.some(m => m.codename === codename)).to.be.true;",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/?search=Binary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Binary"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pagination - Default Page Size",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Page size is capped by DRF pagination settings', function () {",
+                  "        pm.expect(data.results.length).to.be.at.most(10);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pagination - Page 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Page 2 is served (200) or out of range (404) -- both are valid pagination responses', function () {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/?page=2",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "?status=, ?difficulty=, ?hostel=, ?search=, ?page="
+    },
+    {
+      "name": "8. Mission Lifecycle - Claim / Drop / Complete",
+      "item": [
+        {
+          "name": "Claim Mission - Participant A (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Status is now in_progress', function () {",
+                  "        pm.expect(data.status).to.eql('in_progress');",
+                  "    });",
+                  "    pm.test('claimed_by is participant A', function () {",
+                  "        pm.expect(Number(data.claimed_by.id)).to.eql(Number(pm.environment.get('participant_a_id')));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Already-Claimed Mission - Participant B (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 409', function () {",
+                  "        pm.response.to.have.status(409);",
+                  "    });",
+                  "    // Two participants must not both succeed in claiming the same mission.",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            },
+            "description": "'Participant tries to claim an already claimed mission -> Failure' from the task spec."
+          },
+          "response": []
+        },
+        {
+          "name": "Drop Another Participant's Mission - Participant B (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 409', function () {",
+                  "        pm.response.to.have.status(409);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/drop/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "drop",
+                ""
+              ]
+            },
+            "description": "'Participant tries to modify another participant's mission -> Failure' from the task spec."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Another Participant's Mission - Participant B (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 409', function () {",
+                  "        pm.response.to.have.status(409);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/complete/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "complete",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Drop Mission - Participant A (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Status is back to unclaimed', function () {",
+                  "        pm.expect(data.status).to.eql('unclaimed');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/drop/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "drop",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Re-claim Mission - Participant A (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Mission - Participant A (Success)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 200', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.test('Status is cracked', function () {",
+                  "        pm.expect(data.status).to.eql('cracked');",
+                  "    });",
+                  "    pm.test('completed_hostel is participant A\\'s hostel', function () {",
+                  "        pm.expect(Number(data.completed_hostel)).to.eql(Number(pm.environment.get('hostel_id_a')));",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/complete/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "complete",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Cracked Mission - Participant B (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 409', function () {",
+                  "        pm.response.to.have.status(409);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Ownership enforcement: only the claimant can drop/complete; nobody can claim what's already claimed or cracked."
+    },
+    {
+      "name": "9. Deadline Handling",
+      "item": [
+        {
+          "name": "Create Expired Mission - Staff (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.environment.set('expired_mission_codename', 'Postman Expired Mission ' + Date.now());",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 201', function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "    const data = pm.response.json();",
+                  "    pm.environment.set('expired_mission_id', data.id);",
+                  "    pm.test('Status is derived as expired even though it was never claimed', function () {",
+                  "        pm.expect(data.status).to.eql('expired');",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codename\": \"{{expired_mission_codename}}\",\n  \"brief\": \"Deadline is already in the past.\",\n  \"points\": 10,\n  \"difficulty\": \"easy\",\n  \"deadline\": \"2020-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Expired Mission - Participant A (Failure)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Status code is 409', function () {",
+                  "        pm.response.to.have.status(409);",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{expired_mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{expired_mission_id}}",
+                "claim",
+                ""
+              ]
+            },
+            "description": "'Participant tries to claim an expired mission -> Failure' from the task spec."
+          },
+          "response": []
+        }
+      ],
+      "description": "The API checks the real deadline, not just the stored status."
+    },
+    {
+      "name": "10. Rate Limiting",
+      "item": [
+        {
+          "name": "Claim Attempt 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const code = pm.response.code;",
+                  "    pm.test('Response is 409 (conflict, mission already cracked) or 429 (throttled)', function () {",
+                  "        pm.expect(code).to.be.oneOf([409, 429]);",
+                  "    });",
+                  "    if (code === 429) { pm.environment.set('_saw_429', 'true'); }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Attempt 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const code = pm.response.code;",
+                  "    pm.test('Response is 409 (conflict, mission already cracked) or 429 (throttled)', function () {",
+                  "        pm.expect(code).to.be.oneOf([409, 429]);",
+                  "    });",
+                  "    if (code === 429) { pm.environment.set('_saw_429', 'true'); }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Attempt 3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const code = pm.response.code;",
+                  "    pm.test('Response is 409 (conflict, mission already cracked) or 429 (throttled)', function () {",
+                  "        pm.expect(code).to.be.oneOf([409, 429]);",
+                  "    });",
+                  "    if (code === 429) { pm.environment.set('_saw_429', 'true'); }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Attempt 4",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const code = pm.response.code;",
+                  "    pm.test('Response is 409 (conflict, mission already cracked) or 429 (throttled)', function () {",
+                  "        pm.expect(code).to.be.oneOf([409, 429]);",
+                  "    });",
+                  "    if (code === 429) { pm.environment.set('_saw_429', 'true'); }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Attempt 5",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const code = pm.response.code;",
+                  "    pm.test('Response is 409 (conflict, mission already cracked) or 429 (throttled)', function () {",
+                  "        pm.expect(code).to.be.oneOf([409, 429]);",
+                  "    });",
+                  "    if (code === 429) { pm.environment.set('_saw_429', 'true'); }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Claim Attempt 6",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    const code = pm.response.code;",
+                  "    pm.test('Response is 409 (conflict, mission already cracked) or 429 (throttled)', function () {",
+                  "        pm.expect(code).to.be.oneOf([409, 429]);",
+                  "    });",
+                  "    if (code === 429) { pm.environment.set('_saw_429', 'true'); }",
+                  "    pm.test('Rate limit (429) was triggered at some point in this sequence', function () {",
+                  "        pm.expect(code === 429 || pm.environment.get('_saw_429') === 'true').to.be.true;",
+                  "    });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/claim/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                "claim",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "MissionActionRateThrottle allows 5 claim/drop/complete calls per minute per user; run this folder (and ideally the whole collection) quickly via Collection Runner so the requests land in the same window. The mission is already cracked by this point, so successful responses are impossible (409) until the throttle itself kicks in and returns 429 -- that transition is what's being demonstrated."
+    },
+    {
+      "name": "12. Cleanup",
+      "item": [
+        {
+          "name": "Delete Main Mission (Cleanup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Deleted or already gone', function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{mission_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expired Mission (Cleanup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test('Deleted or already gone', function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_staff}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/missions/{{expired_mission_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "missions",
+                "{{expired_mission_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Removes the missions this run created. Registered participant/user accounts have no delete endpoint and are left in place -- harmless on re-runs since usernames are timestamp-suffixed."
+    }
+  ]
+}
