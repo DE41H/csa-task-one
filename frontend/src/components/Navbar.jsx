@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
 export default function Navbar() {
@@ -12,19 +12,34 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <span className="brand">Operation Golden Keyboard</span>
+      <Link to="/missions" className="brand">
+        <span className="brand-mark">GK</span>
+        Golden Keyboard
+      </Link>
       <div className="nav-links">
-        <Link to="/missions">Missions</Link>
-        <Link to="/leaderboard">Leaderboard</Link>
+        <NavLink to="/missions" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          Missions
+        </NavLink>
+        <NavLink to="/leaderboard" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          Leaderboard
+        </NavLink>
+        <div className="nav-divider" />
         {isLoggedIn ? (
-          <>
+          <div className="user-chip">
+            <span className="avatar">{username?.slice(0, 2)}</span>
             <span className="username">{username}</span>
-            <button onClick={handleLogout}>Log out</button>
-          </>
+            <button className="btn-ghost btn-sm" onClick={handleLogout}>
+              Log out
+            </button>
+          </div>
         ) : (
           <>
-            <Link to="/login">Log in</Link>
-            <Link to="/register">Register</Link>
+            <NavLink to="/login" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+              Log in
+            </NavLink>
+            <Link to="/register">
+              <button className="btn-sm">Register</button>
+            </Link>
           </>
         )}
       </div>

@@ -35,36 +35,46 @@ export default function Register() {
   }
 
   return (
-    <div className="card auth-card">
-      <h2>Register</h2>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username
-          <input value={form.username} onChange={update("username")} required />
-        </label>
-        <label>
-          Password
-          <input type="password" value={form.password} onChange={update("password")} required />
-        </label>
-        <label>
-          Handle
-          <input value={form.handle} onChange={update("handle")} required />
-        </label>
-        <label>
-          Hostel
-          <select value={form.hostel} onChange={update("hostel")} required>
-            <option value="" disabled>Select a hostel</option>
-            {hostels.map((h) => (
-              <option key={h.id} value={h.id}>{h.name}</option>
-            ))}
-          </select>
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>{busy ? "Creating..." : "Create account"}</button>
-      </form>
-      <p>
-        Already registered? <Link to="/login">Log in</Link>
-      </p>
+    <div className="auth-shell">
+      <div className="card auth-card">
+        <div className="auth-mark">GK</div>
+        <h2>Join the competition</h2>
+        <p className="auth-subtitle">Pick your hostel — every mission you crack adds to its score.</p>
+        <form onSubmit={handleSubmit}>
+          <label>
+            Username
+            <input value={form.username} onChange={update("username")} required />
+          </label>
+          <label>
+            Password
+            <input type="password" value={form.password} onChange={update("password")} required />
+          </label>
+          <label>
+            Handle
+            <input value={form.handle} onChange={update("handle")} required />
+          </label>
+          <label>
+            Hostel
+            <select value={form.hostel} onChange={update("hostel")} required>
+              <option value="" disabled>
+                Select a hostel
+              </option>
+              {hostels.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button type="submit" disabled={busy}>
+            {busy ? "Creating..." : "Create account"}
+          </button>
+        </form>
+        <p>
+          Already registered? <Link to="/login">Log in</Link>
+        </p>
+      </div>
     </div>
   );
 }

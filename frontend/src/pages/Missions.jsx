@@ -49,7 +49,12 @@ export default function Missions() {
 
   return (
     <div>
-      <h2>Missions</h2>
+      <div className="page-header">
+        <div>
+          <h2>Missions</h2>
+          <p>Claim what's open, crack it before the clock runs out.</p>
+        </div>
+      </div>
 
       <div className="filters">
         <select value={status} onChange={(e) => resetToFirstPage(setStatus)(e.target.value)}>
@@ -74,7 +79,11 @@ export default function Missions() {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p>Loading...</p>}
+      {loading && (
+        <div className="loading-state">
+          <span className="spinner" /> Loading missions...
+        </div>
+      )}
 
       <div className="mission-list">
         {data.results.map((m) => (
@@ -87,14 +96,22 @@ export default function Missions() {
             onComplete={(id) => api.completeMission(id).then(load)}
           />
         ))}
-        {!loading && data.results.length === 0 && <p>No missions match these filters.</p>}
+        {!loading && data.results.length === 0 && <p className="empty-state">No missions match these filters.</p>}
       </div>
 
-      <div className="pagination">
-        <button disabled={!data.previous} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</button>
-        <span>Page {page} · {data.count} total</span>
-        <button disabled={!data.next} onClick={() => setPage((p) => p + 1)}>Next</button>
-      </div>
+      {data.results.length > 0 && (
+        <div className="pagination">
+          <button className="btn-ghost" disabled={!data.previous} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            Previous
+          </button>
+          <span>
+            Page {page} · {data.count} total
+          </span>
+          <button className="btn-ghost" disabled={!data.next} onClick={() => setPage((p) => p + 1)}>
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

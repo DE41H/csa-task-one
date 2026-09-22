@@ -25,23 +25,29 @@ export default function Login() {
   }
 
   return (
-    <div className="card auth-card">
-      <h2>Log in</h2>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>{busy ? "Logging in..." : "Log in"}</button>
-      </form>
-      <p>
-        No account yet? <Link to="/register">Register</Link>
-      </p>
+    <div className="auth-shell">
+      <div className="card auth-card">
+        <div className="auth-mark">GK</div>
+        <h2>Welcome back</h2>
+        <p className="auth-subtitle">Log in to claim missions for your hostel.</p>
+        <form onSubmit={handleSubmit}>
+          <label>
+            Username
+            <input value={username} onChange={(e) => setUsername(e.target.value)} required />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button type="submit" disabled={busy}>
+            {busy ? "Logging in..." : "Log in"}
+          </button>
+        </form>
+        <p>
+          No account yet? <Link to="/register">Register</Link>
+        </p>
+      </div>
     </div>
   );
 }
